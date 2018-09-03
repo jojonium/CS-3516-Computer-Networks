@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <netinet/in.h>
+#include <unistd.h>
 
 #define BACKLOG 10
 #define BUFSIZE 8096
@@ -15,7 +16,7 @@ int main(int argc, char *argv[]) {
 	struct sockaddr_storage their_addr;
 	struct addrinfo hints;
 	struct addrinfo *servinfo; // will point to the results
-	char *received = (char *)malloc(BUFSIZE * sizeof char);
+	char *received = (char *)malloc(BUFSIZE * sizeof(char));
 
 	// error check for arguments
 	if (argc < 2) {
@@ -35,12 +36,12 @@ int main(int argc, char *argv[]) {
 
 	// servinfo now points to a linked list of 1 or more struct addrinfos
 	
-	if ((s = socket(servinfo.ai_family, servinfo.ai_socktype, servinfo.ai_protocol)) < 0) {
+	if ((s = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol)) < 0) {
 		printf("socket error\n");
 		exit(1);
 	}
 
-	if (bind(s, servinfo.ai_addr, servinfo.ai_addrlen) < 0) {
+	if (bind(s, servinfo->ai_addr, servinfo->ai_addrlen) < 0) {
 		printf("bind error\n");
 		exit(1);
 	}
@@ -51,10 +52,26 @@ int main(int argc, char *argv[]) {
 	}
 
 	addr_size = sizeof their_addr;
-	new_fd = accept(s, (struct sockaddr *)&their_addr, &addr_size);
+
+	char *message = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html><h1>Testing</h1>\r\n\r\n";
+	int len = strlen(message);
+	int bytes_sent;
 	
 	while (1) {
-		r = recv(new_fd, received, BUFSIZE, 0);
+		new_fd = accept(s, (struct sockaddr *)&their_addr, &addr_size);
+		if ((r = recv(new_fd, received, BUFSIZE, 0)) < 0) {
+			printf("recv error\n");
+			exit(1);
+		}
+
+		bytes_sent = send(new_fd, message, len, 0);
+		printf("%d bytes sent\n", bytes_sent);
+
+		close(new_fd);
 	}
+
+
+
+	return 0;
 	
 }

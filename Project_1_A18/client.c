@@ -73,8 +73,6 @@ int main(int argc, char *argv[]) {
 	hints.ai_family = AF_UNSPEC;     // don't care IPv4 or IPv6
 	hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
 
-	// record start time
-	gettimeofday(&start, NULL);
 
 	// get ready to connect
 	if ((g = getaddrinfo(server_url, port_number, &hints, &servinfo)) < 0) { // error
@@ -82,21 +80,23 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	// servinfo now points to a linked list of 1 or more struct addrinfos
-
 	// we should do error checking on getaddrinfo(), and walk the linked list
 	// looking for valid entries instead of just assuming the first one is good
-	s = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
-
-	if (s < 0) { // error
+	if ((s = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol)) < 0) { //error
 		printf("socket error\n");
 		exit(1);
 	}
+
+	// record start time
+	gettimeofday(&start, NULL);
 
 	if ((c = connect(s, servinfo->ai_addr, servinfo->ai_addrlen)) < 0) { // error
 		printf("connect error\n");
 		exit(1);
 	}
+
+	// record end time
+	gettimeofday(&end, NULL);
 
 	if ((bytes_sent = send(s, msg, len, 0)) < 0) { // error
 		printf("send error\n");
@@ -111,9 +111,6 @@ int main(int argc, char *argv[]) {
 	if((r = recv(s, received, r_size, 0)) < 0) { // error
 		printf("recv error");
 	}
-
-	// record end time
-	gettimeofday(&end, NULL);
 
 	// calculate RTT
 	rtt = ((end.tv_sec * 1000) + (end.tv_usec / 1000)) - ((start.tv_sec * 1000) + (start.tv_usec / 1000));
