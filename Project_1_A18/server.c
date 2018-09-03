@@ -6,17 +6,24 @@
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/sendfile.h>
+
 
 #define BACKLOG 10
 #define BUFSIZE 8096
 
 int main(int argc, char *argv[]) {
-	int s, new_fd, r;
+	int s, new_fd, r, bytes_sent, file_to_send, remaining;
 	socklen_t addr_size;
 	struct sockaddr_storage their_addr;
 	struct addrinfo hints;
 	struct addrinfo *servinfo; // will point to the results
 	char *received = (char *)malloc(BUFSIZE * sizeof(char));
+	char *message;
+	struct stat file_stat;
+	long offset, len;
 
 	// error check for arguments
 	if (argc < 2) {
@@ -53,19 +60,44 @@ int main(int argc, char *argv[]) {
 
 	addr_size = sizeof their_addr;
 
-	char *message = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html><h1>Testing</h1>\r\n\r\n";
-	int len = strlen(message);
-	int bytes_sent;
+	message = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n";
+	len = strlen(message);
+	if ((file_to_send = open("TMDG.html", O_RDONLY)) < 0) {
+		printf("open error\n");
+		exit(1);
+	}
+
+	// get file stats
+	if (fstat(file_to_send, &file_stat) < 0) {
+		printf("fstat error\n");
+		exit(1);
+	}
 	
 	while (1) {
 		new_fd = accept(s, (struct sockaddr *)&their_addr, &addr_size);
-		if ((r = recv(new_fd, received, BUFSIZE, 0)) < 0) {
+		/*if ((r = recv(new_fd, received, BUFSIZE, 0)) < 0) {
 			printf("recv error\n");
+			exit(1);
+		}*/
+		
+		recv(new_fd, received, BUFSIZE, 0);
+
+		// add length of sent file to len
+		len += file_stat.st_size;
+
+		// send header
+		if ((s = send(new_fd, message, len, 0)) < 0) {
+			printf("sending header error");
 			exit(1);
 		}
 
-		bytes_sent = send(new_fd, message, len, 0);
-		printf("%d bytes sent\n", bytes_sent);
+		offset = 0;
+		remaining = file_stat.st_size;
+		
+		// send file data
+		while (((bytes_sent = sendfile(new_fd, file_to_send, &offset, BUFSIZ)) > 0) && (remaining > 0)) {
+			remaining -= bytes_sent;
+		}
 
 		close(new_fd);
 	}
