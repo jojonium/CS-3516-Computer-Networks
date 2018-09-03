@@ -15,15 +15,17 @@
 #define BUFSIZE 8096
 
 int main(int argc, char *argv[]) {
-	int s, new_fd, r, bytes_sent, file_to_send, remaining;
+	int s, new_fd, r, bytes_read, file, remaining;
 	socklen_t addr_size;
 	struct sockaddr_storage their_addr;
 	struct addrinfo hints;
 	struct addrinfo *servinfo; // will point to the results
 	char *received = (char *)malloc(BUFSIZE * sizeof(char));
-	char *message;
+	char *message, *reqline[3], path[1024];
+	char data_to_send[1024];
 	struct stat file_stat;
 	long offset, len;
+	char *root = getenv("PWD"); // root directory of the server
 
 	// error check for arguments
 	if (argc < 2) {
@@ -58,21 +60,6 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	addr_size = sizeof their_addr;
-
-	message = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n";
-	len = strlen(message);
-	if ((file_to_send = open("TMDG.html", O_RDONLY)) < 0) {
-		printf("open error\n");
-		exit(1);
-	}
-
-	// get file stats
-	if (fstat(file_to_send, &file_stat) < 0) {
-		printf("fstat error\n");
-		exit(1);
-	}
-	
 	while (1) {
 		new_fd = accept(s, (struct sockaddr *)&their_addr, &addr_size);
 		/*if ((r = recv(new_fd, received, BUFSIZE, 0)) < 0) {
@@ -80,30 +67,46 @@ int main(int argc, char *argv[]) {
 			exit(1);
 		}*/
 		
-		recv(new_fd, received, BUFSIZE, 0);
+		r = recv(new_fd, received, BUFSIZE, 0);
 
-		// add length of sent file to len
-		len += file_stat.st_size;
+		if (r < 0) {
+			printf("recv error\n");
+		} else if (r == 0) {
+			printf("client disconnected\n");
+		} else { // message received
+			printf("%s", received);
+			reqline[0] = strtok(received, " \t\n");
 
-		// send header
-		if ((s = send(new_fd, message, len, 0)) < 0) {
-			printf("sending header error");
-			exit(1);
+			if (strncmp(reqline[0], "GET\0", 4) == 0) {
+				reqline[1] = strtok(NULL, " \t");
+				reqline[2] = strtok(NULL, " \t\n");
+				if (strncmp(reqline[2], "HTTP/1.0", 8) != 0 && strncmp(reqline[2], "HTTP/1.1", 8) != 0) {
+					write(new_fd, "HTTP/1.1 400 Bad Request\n", 25);
+				} else {
+					if (strncmp(reqline[1], "/\0", 2) == 0) {
+						reqline[1] = "/index.html"; // send index.html as default if no file is specified
+					}
+					
+					strcpy(path, root);
+					strcpy(&path[strlen(root)], reqline[1]);
+					printf("file requested: %s\n", path);
+
+					if ((file = open(path, O_RDONLY)) != -1) { // file found
+						send(new_fd, "HTTP/1.1 200 OK\r\n\r\n", 19, 0);
+						while ((bytes_read = read(file, data_to_send, 1024)) > 0) {
+							write(new_fd, data_to_send, bytes_read);
+						}
+					} else {
+						write(new_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26); // file not found
+					}
+				}
+			}
 		}
 
-		offset = 0;
-		remaining = file_stat.st_size;
-		
-		// send file data
-		while (((bytes_sent = sendfile(new_fd, file_to_send, &offset, BUFSIZ)) > 0) && (remaining > 0)) {
-			remaining -= bytes_sent;
-		}
 
 		close(new_fd);
 	}
 
 
-
 	return 0;
-	
 }
