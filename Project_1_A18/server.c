@@ -15,16 +15,14 @@
 #define BUFSIZE 8096
 
 int main(int argc, char *argv[]) {
-	int s, new_fd, r, bytes_read, file, remaining;
+	int s, new_fd, r, bytes_read, file;
 	socklen_t addr_size;
 	struct sockaddr_storage their_addr;
 	struct addrinfo hints;
 	struct addrinfo *servinfo; // will point to the results
 	char *received = (char *)malloc(BUFSIZE * sizeof(char));
-	char *message, *reqline[3], path[1024];
+	char *reqline[3], path[1024];
 	char data_to_send[1024];
-	struct stat file_stat;
-	long offset, len;
 	char *root = getenv("PWD"); // root directory of the server
 
 	// error check for arguments
