@@ -8,17 +8,18 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/time.h>
-#define BUFSIZE 8096
+#define BUFSIZE 8192
 
 int main(int argc, char *argv[]) {
 	char *server_url;
 	char *filename; 
 	char *port_number;
 	char *msg = (char *)malloc(BUFSIZE * sizeof(char));
-	char *received = (char *)malloc(BUFSIZE * sizeof(char));
+	char *received = NULL;
+	char *block = (char *)malloc(BUFSIZE * sizeof(char));
 	int g, s, c, r, len, bytes_sent;
 	long rtt;
-	long r_size = BUFSIZE;
+	int count = 1;
 	int printFlag = 0;
 	int serverRead = 0;
 	int portRead = 0;
@@ -80,8 +81,6 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	// we should do error checking on getaddrinfo(), and walk the linked list
-	// looking for valid entries instead of just assuming the first one is good
 	if ((s = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol)) < 0) { //error
 		printf("socket error\n");
 		exit(1);
@@ -98,6 +97,7 @@ int main(int argc, char *argv[]) {
 	// record end time
 	gettimeofday(&end, NULL);
 
+	// SEND IT
 	if ((bytes_sent = send(s, msg, len, 0)) < 0) { // error
 		printf("send error\n");
 		exit(1);
@@ -108,16 +108,32 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	if((r = recv(s, received, r_size, 0)) < 0) { // error
-		printf("recv error");
+	// Receive it
+	printf("Ready to receive\n");
+	while (1) {
+		if ((r = recv(s, block, BUFSIZE, 0)) < 0) {
+			printf("recv error\n");
+		} else if (r == 0) {
+			printf("nothing received\n");
+			break;
+		} else {
+			printf("%s", block);
+			//received = (char *)realloc(received, count * BUFSIZE * sizeof(char));
+			//strcat(received, block);
+			//printf("Reallocated. Count = %d\n", count);
+			//count++;
+		}
+
 	}
 
 	// calculate RTT
 	rtt = ((end.tv_sec * 1000) + (end.tv_usec / 1000)) - ((start.tv_sec * 1000) + (start.tv_usec / 1000));
 	if (printFlag) {
-		printf("RTT: %ld\n", rtt);
+		printf("\n=== RTT: %ld milliseconds ===\n\n", rtt);
 	}
 
-	printf("received: %s", received);
+	printf("\nDONE\n");
+	//printf("final count: %d\n", count);
+	//printf("=== RECEIVED ===\n\n%s\n", received);
 	return 0;
 }
