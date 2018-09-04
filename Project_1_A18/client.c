@@ -8,7 +8,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/time.h>
-#define BUFSIZE 8192
+#define BUFSIZE 256
 
 int main(int argc, char *argv[]) {
 	char *server_url;
@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
 	char *port_number;
 	char *msg = (char *)malloc(BUFSIZE * sizeof(char));
 	char *received = NULL;
-	char *block = (char *)malloc(BUFSIZE * sizeof(char));
+	char block[BUFSIZE];// = (char *)malloc(BUFSIZE * sizeof(char));
 	int g, s, c, r, len, bytes_sent;
 	long rtt;
 	int count = 1;
@@ -25,7 +25,9 @@ int main(int argc, char *argv[]) {
 	int portRead = 0;
 	struct addrinfo hints;
 	struct addrinfo *servinfo; // will point to the results
-	struct timeval start, end;
+	struct timeval start, end, tv;
+	tv.tv_sec = 1; // needed for timeout
+	tv.tv_usec = 0;
 
 	if (argc < 3) {
 		printf("Not enough arguments. Expected the form:\n\t ./http_client [-options] server_url port_number\n");
@@ -68,6 +70,7 @@ int main(int argc, char *argv[]) {
 	strcat(msg, " HTTP/1.1\r\nHost: ");
 	strcat(msg, server_url);
 	strcat(msg, "\r\n\r\n");
+
 	len = strlen(msg);
 
 	memset(&hints, 0, sizeof(hints)); // make sure the struct is empty
@@ -81,10 +84,14 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
+	// get the socket
 	if ((s = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol)) < 0) { //error
 		printf("socket error\n");
 		exit(1);
 	}
+
+	// set timeout
+	setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
 
 	// record start time
 	gettimeofday(&start, NULL);
@@ -109,31 +116,26 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Receive it
-	printf("Ready to receive\n");
 	while (1) {
 		if ((r = recv(s, block, BUFSIZE, 0)) < 0) {
-			printf("recv error\n");
+			break;
 		} else if (r == 0) {
 			printf("nothing received\n");
 			break;
 		} else {
-			printf("%s", block);
-			//received = (char *)realloc(received, count * BUFSIZE * sizeof(char));
-			//strcat(received, block);
-			//printf("Reallocated. Count = %d\n", count);
-			//count++;
+			block[r] = '\0';
+			received = (char *)realloc(received, count * BUFSIZE * sizeof(char));
+			strcat(received, block);
+			count++;
 		}
 
 	}
+
+	printf("\n=== RECEIVED ===\n\n%s", received);
 
 	// calculate RTT
 	rtt = ((end.tv_sec * 1000) + (end.tv_usec / 1000)) - ((start.tv_sec * 1000) + (start.tv_usec / 1000));
 	if (printFlag) {
 		printf("\n=== RTT: %ld milliseconds ===\n\n", rtt);
 	}
-
-	printf("\nDONE\n");
-	//printf("final count: %d\n", count);
-	//printf("=== RECEIVED ===\n\n%s\n", received);
-	return 0;
 }
