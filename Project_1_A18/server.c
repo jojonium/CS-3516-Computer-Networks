@@ -20,9 +20,7 @@ int main(int argc, char *argv[]) {
 	struct sockaddr_storage their_addr;
 	struct addrinfo hints;
 	struct addrinfo *servinfo; // will point to the results
-	char *received = (char *)malloc(BUFSIZE * sizeof(char));
 	char *reqline[3], path[1024];
-	char data_to_send[1024];
 	char *root = getenv("PWD"); // root directory of the server
 
 	// error check for arguments
@@ -59,9 +57,12 @@ int main(int argc, char *argv[]) {
 	}
 
 	while (1) {
-		if (fork()) {
-			new_fd = accept(s, (struct sockaddr *)&their_addr, &addr_size);
-			
+		new_fd = accept(s, (struct sockaddr *)&their_addr, &addr_size);
+
+		if (fork() == 0) {
+			char *received = (char *)malloc(BUFSIZE * sizeof(char));
+			char data_to_send[1024];
+
 			r = recv(new_fd, received, BUFSIZE, 0);
 	
 			if (r < 0) {
@@ -97,7 +98,10 @@ int main(int argc, char *argv[]) {
 					}
 				}
 			}
-	
+			
+			// clean up
+			free(received);
+			shutdown(new_fd, 2);
 			close(new_fd);
 		}
 	}
