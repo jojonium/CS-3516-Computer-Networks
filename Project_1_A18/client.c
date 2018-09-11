@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
 	char *msg = (char *)malloc(BUFSIZE * sizeof(char));
 	char *received = NULL;
 	char block[BUFSIZE];// = (char *)malloc(BUFSIZE * sizeof(char));
-	int g, s, c, r, len, bytes_sent;
+	int g, s, c, r, len, bytes_sent, i;
 	long rtt;
 	int count = 1;
 	int printFlag = 0;
@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
 	}
 	
 	// parse command line arguments
-	for (int i = 1; i < argc; i++) {
+	for (i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') { // option
 			if (argv[i][1] == 'p')
 				printFlag = 1;
@@ -138,4 +138,6 @@ int main(int argc, char *argv[]) {
 	if (printFlag) {
 		printf("\n=== RTT: %ld milliseconds ===\n\n", rtt);
 	}
+
+	return 0;
 }
