@@ -12,6 +12,12 @@ computer. "lab1-get.pdf" and "lab1-ok.pdf" show the two main HTML packets involv
 from my computer and a 200 OK response from the server. The folder also includes a "pcapng" file that
 shows the results of Wireshark during the lab.
 
+## Lab 2
+
+Lab 2 is designed to give students an understanding of DNS servers, DNS queries, and responses. The
+screenshots and pcapng files show details of Wireshark captures of DNS queries and responses, and the
+writeup (lab2.pdf) goes into more detail about these messages.
+
 ## Project 1
 
 The goal of project 1 is to implement a HTTP client and server using a simplified version of the
