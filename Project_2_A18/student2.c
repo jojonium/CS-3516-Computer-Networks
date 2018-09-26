@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "project2.h"
-#include "string.h"
  
 /* ***************************************************************************
  ALTERNATING BIT AND GO-BACK-N NETWORK EMULATOR: VERSION 1.1  J.F.Kurose
@@ -18,20 +18,75 @@
    Compile as gcc -g project2.c student2.c -o p2
 **********************************************************************/
 
+// linked list node struct for the queue
+struct node {
+	struct pkt *packet;
+	struct node *next;
+};
+
 // GLOBAL VARIABLES
 int A_seq, B_seq;
 struct pkt lastSent;
+struct node *head = NULL;
+struct node *tail = NULL;
 
-// helper functions
+/********************************************\
+               HELPER FUNCTIONS
+\********************************************/
 int calculateCS(struct pkt packet) {
 	int out, i;
 	
-	out = packet.seqnum + packet.acknum;
+	out = (13 * packet.seqnum) + (17 * packet.acknum);
 	for (i = 0; i < MESSAGE_LENGTH; i++) {
 		out += (i + 1) * packet.payload[i];
 	}
 	
 	return out;
+}
+
+struct pkt *pop() {
+	struct pkt *packet = head->packet;
+	struct node *oldHead = head;
+	head = head->next;
+
+	free(oldHead);
+
+	if (head == NULL) tail = NULL;
+
+	return packet;
+}
+
+void push(struct pkt *packet) {
+	struct node *newNode = malloc(sizeof(struct node));
+	newNode->packet = packet;
+	newNode->next = NULL;
+
+	// if queue is empty
+	if (head == NULL && tail == NULL) {
+		head = newNode;
+		tail = newNode;
+	}
+	else {
+		tail->next = newNode;
+		tail = newNode;
+	}
+}
+
+void sendFromQueue() {
+	struct pkt *packet;
+
+	packet = pop();
+
+	if (TraceLevel >= 2) {
+		printf("A sending a packet:\t");
+		printf("payload: %.20s\tsequence: %d\n", packet->payload, packet->seqnum);
+	}
+
+	tolayer3(AEntity, *packet);
+	startTimer(AEntity, 500);
+	lastSent = *packet;
+
+	free(packet);
 }
 
 // returns 1 for a corrupt packet, 1 for corruption
@@ -109,6 +164,7 @@ void A_input(struct pkt packet) {
 			printf("Response corrupted. Resending last packet\n");
 		}
 		tolayer3(AEntity, lastSent);
+		startTimer(AEntity, 500);
 	}
 
 	// NAK
@@ -123,6 +179,7 @@ void A_input(struct pkt packet) {
 				printf("B asked for the last packet to be retransmitted.\n");
 			}
 			tolayer3(AEntity, lastSent);
+			startTimer(AEntity, 500);
 		}
 
 		// see if B wants the next packet
@@ -130,13 +187,18 @@ void A_input(struct pkt packet) {
 			if (TraceLevel >= 2) {
 				printf("B asked for the next packet.\n");
 			}
-			// TODO send next packet in queue
+
+			if (head != NULL)
+				sendFromQueue();
+			
 		}
 	}
 
 	// ACK
 	else {
-		// TODO send next packet in queue
+		if (head != NULL)
+			sendFromQueue();
+		// if the head is NULL it means the queue is empty so we do nothing
 	}
 }
 
@@ -159,7 +221,13 @@ void A_timerinterrupt() {
 /* The following routine will be called once (only) before any other    */
 /* entity A routines are called. You can use it to do any initialization */
 void A_init() {
-	A_seq = 0;
+	lastSent.seqnum = 1;
+	lastSent.acknum = 0;
+	for (int i = 0; i < MESSAGE_LENGTH; i++) {
+		lastSent.payload[i] = 'A';
+	}
+	lastSent.checksum = 0;
+	A_seq = 1;
 }
 
 
