@@ -29,6 +29,7 @@
 /*  This defines which side (entity) is making a call to the simulator */
 #define  AEntity         0
 #define  BEntity         1
+extern int TraceLevel;
 
 // A "msg" is the data unit passed from layer 5 (Application code) to layer 
 // 4 (student's code).  It contains the data (characters) to be delivered 

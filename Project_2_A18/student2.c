@@ -18,6 +18,9 @@
    Compile as gcc -g project2.c student2.c -o p2
 **********************************************************************/
 
+// GLOBAL VARIABLES
+int A_seq, B_seq;
+//int TraceLevel = 2;
 
 
 /********* STUDENTS WRITE THE NEXT SEVEN ROUTINES *********/
@@ -40,8 +43,8 @@ void A_output(struct msg message) {
 	int checksum, i;
 
 	// construct packet
-	packet.seqnum = 0;
-	packet.acknum = 2;
+	packet.seqnum = A_seq;
+	packet.acknum = 2; // shows that it's not an ACK or NAK
 	strncpy(packet.payload, message.data, MESSAGE_LENGTH);
 
 	// calculate checksum
@@ -51,7 +54,12 @@ void A_output(struct msg message) {
 	}
 	packet.checksum = checksum;
 
+	if (TraceLevel > 1)
+		printf("A sending a packet\n");
+
 	tolayer3(AEntity, packet);
+
+	A_seq = !A_seq;
 }
 
 /*
@@ -59,7 +67,27 @@ void A_output(struct msg message) {
  * implementation is bi-directional.
  */
 void B_output(struct msg message)  {
+	struct pkt packet;
+	int checksum, i;
 
+	// construct packet
+	packet.seqnum = B_seq;
+	packet.acknum = 2; // shows that it's not an ACK or NAK
+	strncpy(packet.payload, message.data, MESSAGE_LENGTH);
+
+	// calculate checksum
+	checksum = 0;
+	for (i = 0; i < MESSAGE_LENGTH; i++) {
+		checksum += i * message.data[i];
+	}
+	packet.checksum = checksum;
+
+	if (TraceLevel > 1)
+		printf("B sending a packet\n");
+
+	tolayer3(BEntity, packet);
+
+	B_seq = !B_seq;
 }
 
 /* 
@@ -69,6 +97,47 @@ void B_output(struct msg message)  {
  * packet is the (possibly corrupted) packet sent from the B-side.
  */
 void A_input(struct pkt packet) {
+	int checksum, i, newAck;
+	struct pkt response;
+	struct msg message;
+
+	checksum = 0;
+	newAck = TRUE;
+	for (i = 0; i < MESSAGE_LENGTH; i++) {
+		checksum += i * packet.payload[i];
+	}
+
+	if (checksum != packet.checksum) {
+		if (TraceLevel > 1)
+			printf("A received a packet that failed checksum test\n");
+		newAck = FALSE;
+	} else if (packet.seqnum != A_seq) {
+		if (TraceLevel > 1)
+			printf("A received a packet with the wrong sequence number\n");
+		newAck = FALSE;
+	}
+
+	// make checksum and seqnum for response
+	for (i = 0; i < MESSAGE_LENGTH; i++) {
+		checksum += i * response.payload[i];
+	}
+	response.checksum = checksum;
+	response.seqnum = A_seq;
+
+	// send NAK if corrupted
+	if (newAck == FALSE) {
+		response.acknum = FALSE;
+		if (TraceLevel > 1)
+			printf("A sending NAK\n");
+		tolayer3(AEntity, response);
+	} else {
+		response.acknum = FALSE;
+		if (TraceLevel > 1)
+			printf("A sending ACK\n");
+		tolayer3(AEntity, response);
+		strncpy(message.data, packet.payload, MESSAGE_LENGTH);
+		tolayer5(AEntity, message);
+	}
 
 }
 
@@ -85,6 +154,7 @@ void A_timerinterrupt() {
 /* The following routine will be called once (only) before any other    */
 /* entity A routines are called. You can use it to do any initialization */
 void A_init() {
+	A_seq = 0;
 }
 
 
@@ -99,6 +169,46 @@ void A_init() {
  * packet is the (possibly corrupted) packet sent from the A-side.
  */
 void B_input(struct pkt packet) {
+	int checksum, i, newAck;
+	struct pkt response;
+	struct msg message;
+
+	checksum = 0;
+	newAck = TRUE;
+	for (i = 0; i < MESSAGE_LENGTH; i++) {
+		checksum += i * packet.payload[i];
+	}
+
+	if (checksum != packet.checksum) {
+		if (TraceLevel > 1)
+			printf("B received a packet that failed checksum test\n");
+		newAck = FALSE;
+	} else if (packet.seqnum != A_seq) {
+		if (TraceLevel > 1)
+			printf("B received a packet with the wrong sequence number\n");
+		newAck = FALSE;
+	}
+
+	// make checksum and seqnum for response
+	for (i = 0; i < MESSAGE_LENGTH; i++) {
+		checksum += i * response.payload[i];
+	}
+	response.checksum = checksum;
+	response.seqnum = B_seq;
+
+	// send NAK if corrupted
+	if (newAck == FALSE) {
+		response.acknum = FALSE;
+		if (TraceLevel > 1)
+			printf("B sending NAK\n");
+		tolayer3(AEntity, response);
+	} else {
+		if (TraceLevel > 1)
+			printf("B sending ACK\n");
+		tolayer3(BEntity, response);
+		strncpy(message.data, packet.payload, MESSAGE_LENGTH);
+		tolayer5(BEntity, message);
+	}
 }
 
 /*
@@ -115,5 +225,6 @@ void  B_timerinterrupt() {
  * entity B routines are called. You can use it to do any initialization 
  */
 void B_init() {
+	B_seq = 0;
 }
 
