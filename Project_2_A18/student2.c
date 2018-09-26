@@ -20,8 +20,30 @@
 
 // GLOBAL VARIABLES
 int A_seq, B_seq;
-//int TraceLevel = 2;
+struct pkt lastSent;
 
+// helper functions
+int calculateCS(struct pkt packet) {
+	int out, i;
+	
+	out = packet.seqnum + packet.acknum;
+	for (i = 0; i < MESSAGE_LENGTH; i++) {
+		out += (i + 1) * packet.payload[i];
+	}
+	
+	return out;
+}
+
+// returns 1 for a corrupt packet, 1 for corruption
+int checkCorrupt(struct pkt packet) {
+	int checksum = calculateCS(packet);
+	
+	if (TraceLevel >= 2) {
+		printf("Corruption check: calculated %d, expected %d\n", checksum, packet.checksum);
+	}
+
+	return !(checksum == packet.checksum);
+}
 
 /********* STUDENTS WRITE THE NEXT SEVEN ROUTINES *********/
 /* 
@@ -40,26 +62,26 @@ int A_seq, B_seq;
  */
 void A_output(struct msg message) {
 	struct pkt packet;
-	int checksum, i;
 
-	// construct packet
+	// flip sequence number and set it
+	A_seq = !A_seq;
 	packet.seqnum = A_seq;
-	packet.acknum = 2; // shows that it's not an ACK or NAK
+
+	packet.acknum = 0;
+
+	// put in the payload
 	strncpy(packet.payload, message.data, MESSAGE_LENGTH);
 
-	// calculate checksum
-	checksum = 0;
-	for (i = 0; i < MESSAGE_LENGTH; i++) {
-		checksum += i * message.data[i];
+	// set the checksum
+	packet.checksum = calculateCS(packet);
+
+	if (TraceLevel >= 2) {
+		printf("A sending a packet:\t");
+		printf("payload: %.20s\tsequence: %d\n", packet.payload, packet.seqnum);
 	}
-	packet.checksum = checksum;
 
-	if (TraceLevel > 1)
-		printf("A sending a packet\n");
-
+	lastSent = packet;
 	tolayer3(AEntity, packet);
-
-	A_seq = !A_seq;
 }
 
 /*
@@ -67,27 +89,6 @@ void A_output(struct msg message) {
  * implementation is bi-directional.
  */
 void B_output(struct msg message)  {
-	struct pkt packet;
-	int checksum, i;
-
-	// construct packet
-	packet.seqnum = B_seq;
-	packet.acknum = 2; // shows that it's not an ACK or NAK
-	strncpy(packet.payload, message.data, MESSAGE_LENGTH);
-
-	// calculate checksum
-	checksum = 0;
-	for (i = 0; i < MESSAGE_LENGTH; i++) {
-		checksum += i * message.data[i];
-	}
-	packet.checksum = checksum;
-
-	if (TraceLevel > 1)
-		printf("B sending a packet\n");
-
-	tolayer3(BEntity, packet);
-
-	B_seq = !B_seq;
 }
 
 /* 
@@ -97,49 +98,48 @@ void B_output(struct msg message)  {
  * packet is the (possibly corrupted) packet sent from the B-side.
  */
 void A_input(struct pkt packet) {
-	int checksum, i, newAck;
-	struct pkt response;
-	struct msg message;
-
-	checksum = 0;
-	newAck = TRUE;
-	for (i = 0; i < MESSAGE_LENGTH; i++) {
-		checksum += i * packet.payload[i];
+	if (TraceLevel >= 2) {
+		printf("A received a packet:\t");
+		printf("acknum: %d\tseqnum: %d\n", packet.acknum, packet.seqnum);
 	}
 
-	if (checksum != packet.checksum) {
-		if (TraceLevel > 1)
-			printf("A received a packet that failed checksum test\n");
-		newAck = FALSE;
-	} else if (packet.seqnum != A_seq) {
-		if (TraceLevel > 1)
-			printf("A received a packet with the wrong sequence number\n");
-		newAck = FALSE;
+	// check for corruption
+	if (checkCorrupt(packet)) {
+		if (TraceLevel >=2) {
+			printf("Response corrupted. Resending last packet\n");
+		}
+		tolayer3(AEntity, lastSent);
 	}
 
-	// make checksum and seqnum for response
-	for (i = 0; i < MESSAGE_LENGTH; i++) {
-		checksum += i * response.payload[i];
-	}
-	response.checksum = checksum;
-	response.seqnum = A_seq;
+	// NAK
+	else if (packet.acknum == FALSE) {
+		if (TraceLevel >= 2) {
+			printf("A Received NAK... ");
+		}
 
-	// send NAK if corrupted
-	if (newAck == FALSE) {
-		response.acknum = FALSE;
-		if (TraceLevel > 1)
-			printf("A sending NAK\n");
-		tolayer3(AEntity, response);
-	} else {
-		response.acknum = FALSE;
-		if (TraceLevel > 1)
-			printf("A sending ACK\n");
-		tolayer3(AEntity, response);
-		strncpy(message.data, packet.payload, MESSAGE_LENGTH);
-		tolayer5(AEntity, message);
+		// see if B wants the last packet resent
+		if (packet.seqnum == lastSent.seqnum) {
+			if (TraceLevel >= 2) {
+				printf("B asked for the last packet to be retransmitted.\n");
+			}
+			tolayer3(AEntity, lastSent);
+		}
+
+		// see if B wants the next packet
+		else {
+			if (TraceLevel >= 2) {
+				printf("B asked for the next packet.\n");
+			}
+			// TODO send next packet in queue
+		}
 	}
 
+	// ACK
+	else {
+		// TODO send next packet in queue
+	}
 }
+
 
 /*
  * A_timerinterrupt()  This routine will be called when A's timer expires 
@@ -148,8 +148,13 @@ void A_input(struct pkt packet) {
  * and stoptimer() in the writeup for how the timer is started and stopped.
  */
 void A_timerinterrupt() {
-
-}  
+	// timed out, resend last packet
+	if (TraceLevel >= 2) {
+		printf("Timed out, resending last packet\n");
+	}
+	tolayer3(AEntity, lastSent);
+	startTimer(AEntity, 500);
+} 
 
 /* The following routine will be called once (only) before any other    */
 /* entity A routines are called. You can use it to do any initialization */
@@ -169,46 +174,49 @@ void A_init() {
  * packet is the (possibly corrupted) packet sent from the A-side.
  */
 void B_input(struct pkt packet) {
-	int checksum, i, newAck;
 	struct pkt response;
 	struct msg message;
 
-	checksum = 0;
-	newAck = TRUE;
-	for (i = 0; i < MESSAGE_LENGTH; i++) {
-		checksum += i * packet.payload[i];
-	}
+	// check for corruption
+	if (checkCorrupt(packet) || packet.seqnum != B_seq) {
+		if (TraceLevel >= 2) {
+			printf("B received a bad packet: ");
+			if (packet.seqnum != B_seq)
+				printf("the sequence number is wrong.\n");
+			else
+				printf("it's corrupt");
+		}
 
-	if (checksum != packet.checksum) {
-		if (TraceLevel > 1)
-			printf("B received a packet that failed checksum test\n");
-		newAck = FALSE;
-	} else if (packet.seqnum != A_seq) {
-		if (TraceLevel > 1)
-			printf("B received a packet with the wrong sequence number\n");
-		newAck = FALSE;
-	}
-
-	// make checksum and seqnum for response
-	for (i = 0; i < MESSAGE_LENGTH; i++) {
-		checksum += i * response.payload[i];
-	}
-	response.checksum = checksum;
-	response.seqnum = B_seq;
-
-	// send NAK if corrupted
-	if (newAck == FALSE) {
+		// make NAK
+		response.seqnum = B_seq;
 		response.acknum = FALSE;
-		if (TraceLevel > 1)
-			printf("B sending NAK\n");
-		tolayer3(AEntity, response);
-	} else {
-		if (TraceLevel > 1)
-			printf("B sending ACK\n");
-		tolayer3(BEntity, response);
-		strncpy(message.data, packet.payload, MESSAGE_LENGTH);
-		tolayer5(BEntity, message);
+		response.checksum = calculateCS(response);
 	}
+	
+	// good packet
+	else {
+		if (TraceLevel >= 2) {
+			printf("B received a packet:\t");
+			printf("payload: %.20s\tsequence: %d\n", packet.payload, packet.seqnum);
+		}
+
+		// flip B_seq
+		B_seq = !B_seq;
+
+		// extract the message and pass it to layer 5
+		strncpy(message.data, packet.payload, MESSAGE_LENGTH);
+		if (TraceLevel >= 2) {
+			printf("Sending message to layer 5: %.20s\n", message.data);
+		}
+		tolayer5(BEntity, message);
+
+		// make ACK
+		response.seqnum = packet.seqnum;
+		response.acknum = TRUE;
+		response.checksum = calculateCS(response);
+	}
+
+	tolayer3(BEntity, response);
 }
 
 /*
