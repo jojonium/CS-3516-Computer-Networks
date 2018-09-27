@@ -36,9 +36,9 @@ struct node *tail = NULL;
 int calculateCS(struct pkt packet) {
 	int out, i;
 	
-	out = (13 * packet.seqnum) + (17 * packet.acknum);
-	for (i = 0; i < MESSAGE_LENGTH; i++) {
-		out += (i + 1) * packet.payload[i];
+	out = (47 * packet.seqnum + 8) + (-75 * packet.acknum + 1);
+	for (i = 2; i <= MESSAGE_LENGTH + 1; i++) {
+		out += (i * 57) * packet.payload[i - 2];
 	}
 	
 	return out;
