@@ -65,8 +65,7 @@ void push(struct pkt *packet) {
 	if (head == NULL && tail == NULL) {
 		head = newNode;
 		tail = newNode;
-	}
-	else {
+	} else {
 		tail->next = newNode;
 		tail = newNode;
 	}
@@ -116,27 +115,38 @@ int checkCorrupt(struct pkt packet) {
  * in-order, and correctly, to the receiving side upper layer.
  */
 void A_output(struct msg message) {
-	struct pkt packet;
+	int i;
+	struct pkt *packet;
+
+	packet = malloc(sizeof(struct pkt)); // remember to free this later
 
 	// flip sequence number and set it
 	A_seq = !A_seq;
-	packet.seqnum = A_seq;
+	packet->seqnum = A_seq;
 
-	packet.acknum = 0;
+	// set the ack number (it doesn't really matter though)
+	packet->acknum = 0;
 
 	// put in the payload
-	strncpy(packet.payload, message.data, MESSAGE_LENGTH);
+	for (i = 0; i < MESSAGE_LENGTH; i++)
+		packet->payload[i] = 0;
+	strncpy(packet->payload, message.data, MESSAGE_LENGTH);
 
 	// set the checksum
-	packet.checksum = calculateCS(packet);
+	packet->checksum = calculateCS(*packet);
 
 	if (TraceLevel >= 2) {
 		printf("A sending a packet:\t");
-		printf("payload: %.20s\tsequence: %d\n", packet.payload, packet.seqnum);
+		printf("payload: %.20s\tsequence: %d\n", packet->payload, packet->seqnum);
 	}
 
-	lastSent = packet;
-	tolayer3(AEntity, packet);
+	// add the packet to the queue
+	push(packet);
+
+	// Send the packet if no other packets are pending
+	if (getTimerStatus(AEntity) == FALSE) {
+		sendFromQueue();
+	}
 }
 
 /*
@@ -157,6 +167,9 @@ void A_input(struct pkt packet) {
 		printf("A received a packet:\t");
 		printf("acknum: %d\tseqnum: %d\n", packet.acknum, packet.seqnum);
 	}
+
+	// stop the timer
+	stopTimer(AEntity);
 
 	// check for corruption
 	if (checkCorrupt(packet)) {
@@ -190,7 +203,6 @@ void A_input(struct pkt packet) {
 
 			if (head != NULL)
 				sendFromQueue();
-			
 		}
 	}
 
@@ -221,12 +233,15 @@ void A_timerinterrupt() {
 /* The following routine will be called once (only) before any other    */
 /* entity A routines are called. You can use it to do any initialization */
 void A_init() {
+	int i;
+
 	lastSent.seqnum = 1;
 	lastSent.acknum = 0;
-	for (int i = 0; i < MESSAGE_LENGTH; i++) {
-		lastSent.payload[i] = 'A';
+	for (i = 0; i < MESSAGE_LENGTH; i++) {
+		lastSent.payload[i] = 0;
 	}
 	lastSent.checksum = 0;
+
 	A_seq = 1;
 }
 
@@ -244,6 +259,7 @@ void A_init() {
 void B_input(struct pkt packet) {
 	struct pkt response;
 	struct msg message;
+	int i;
 
 	// check for corruption
 	if (checkCorrupt(packet) || packet.seqnum != B_seq) {
@@ -259,6 +275,7 @@ void B_input(struct pkt packet) {
 		response.seqnum = B_seq;
 		response.acknum = FALSE;
 		response.checksum = calculateCS(response);
+		tolayer3(BEntity, response);
 	}
 	
 	// good packet
@@ -271,20 +288,25 @@ void B_input(struct pkt packet) {
 		// flip B_seq
 		B_seq = !B_seq;
 
-		// extract the message and pass it to layer 5
+		// extract the message
+		for (i = 0; i < MESSAGE_LENGTH; i++)
+			message.data[i] = 0;
+
 		strncpy(message.data, packet.payload, MESSAGE_LENGTH);
+
 		if (TraceLevel >= 2) {
 			printf("Sending message to layer 5: %.20s\n", message.data);
 		}
+
+		// pass it to layer 5
 		tolayer5(BEntity, message);
 
 		// make ACK
 		response.seqnum = packet.seqnum;
 		response.acknum = TRUE;
 		response.checksum = calculateCS(response);
+		tolayer3(BEntity, response);
 	}
-
-	tolayer3(BEntity, response);
 }
 
 /*
