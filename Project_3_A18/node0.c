@@ -1,5 +1,8 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "project3.h"
+
+#define NODEID 0
 
 extern int TraceLevel;
 
@@ -8,6 +11,25 @@ struct distance_table {
 };
 struct distance_table dt0;
 struct NeighborCosts   *neighbor0;
+int numNodes;
+
+void printdt0( int MyNodeNumber, struct NeighborCosts *neighbor, 
+		struct distance_table *dtptr );
+
+// returns the minimum value in an array of count integers
+int min0(int count, int array[]) {
+	int minimum;
+
+	minimum = array[--count];
+
+	while (count >= 0) {
+		if (array[count] < minimum) minimum = array[count];
+		count--;
+	}
+
+	return minimum;
+}
+
 
 /* students to write the following two routines, and maybe some others */
 
@@ -16,10 +38,52 @@ struct NeighborCosts   *neighbor0;
  * arguments. It should initialize the distance table in node0 to reflect the
  * direct costs to its neighbors by using GetNeighborCosts(). It should also
  * send to its neighbors the minimum cost paths to all other network nodes in a
- * routing packet using tolayer2().
+ * routing packet using toLayer2().
  */
 void rtinit0() {
+	int i, j;
+	struct RoutePacket toSend[MAX_NODES];
 
+	if (TraceLevel >= 2) {
+		printf("Initializing node%d\n", NODEID);
+	}
+
+	// get the initial neighbors
+	neighbor0 = getNeighborCosts(NODEID);
+	numNodes = neighbor0->NodesInNetwork;
+
+	// initialize distance table
+	for (i = 0; i < numNodes; i++) {
+		for (j = 0; j < numNodes; j++) {
+			if (i == j) { // directly connected neighbor
+				dt0.costs[i][j] = neighbor0->NodeCosts[i];
+			}
+			else {
+				dt0.costs[i][j] = INFINITY;
+			}
+		}
+	}
+
+	printf("node%d initial distance table:\n", NODEID);
+	printdt0(NODEID, getNeighborCosts(NODEID), &dt0);
+	
+	if (TraceLevel >= 2) {
+		printf("constructing packets to send...\n");
+	}
+
+	// construct packets to send to neighbors
+	for (i = 0; i < numNodes; i++) {
+		if (i != NODEID) {
+			if (TraceLevel >= 3) printf("making packet %d...\n", i);
+			toSend[i].sourceid = 0;
+			toSend[i].destid = i;
+			for (j = 0; j < numNodes; j++) {
+				toSend[i].mincost[j] = dt0.costs[j][j];
+			}
+			// send packet to neighbor
+			toLayer2(toSend[i]);
+		}
+	}
 }
 
 /* rtupdate0(struct RoutePacket *rcvdpkt)
@@ -34,6 +98,47 @@ void rtinit0() {
  * routing packet.
  */
 void rtupdate0( struct RoutePacket *rcvdpkt ) {
+	int i, j, tableUpdated, src;
+	struct RoutePacket toSend[numNodes];
+
+	if (TraceLevel >= 2) {
+		printf("node%d received routing packet\n", NODEID);
+	}
+
+	// don't break 18 USC Section 1702 (reading someone else's mail)
+	if (rcvdpkt->destid != 0) {
+		printf("node%d received %d's mail\n", NODEID, rcvdpkt->destid);
+		exit(1);
+	}
+
+	tableUpdated = 0; // flag
+	src = rcvdpkt->sourceid;
+
+	for (i = 0; i < MAX_NODES; i++) {
+		if (dt0.costs[i][src] > dt0.costs[src][0] + rcvdpkt->mincost[i]) {
+			dt0.costs[i][src] = dt0.costs[src][0] + rcvdpkt->mincost[i];
+			if (i != NODEID) {
+				tableUpdated = 1;
+			}
+		}
+	}
+
+	if (tableUpdated) {
+		printf("node%d distance table updated: \n", NODEID);
+		printdt0(0, getNeighborCosts(0), &dt0);
+		
+		// construct packets to send to neighbors
+		for (i = 1; i < numNodes; i++) {
+			toSend[i].sourceid = 0;
+			toSend[i].destid = i;
+			for (j = 0; j < numNodes; j++) {
+				toSend[i].mincost[j] = min0(numNodes, dt0.costs[j]);
+			}
+			// send packet to neighbor
+			toLayer2(toSend[i]);
+		}
+
+	}
 
 }
 
