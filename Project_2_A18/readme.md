@@ -1,4 +1,4 @@
-## Project2
+## Project 2
 
 Project 2 is a sending and receiving transport-level code for implementing a
 simple reliable data transfer protocol, i.e. the Alternating-Bit-Protocol (ABP).
