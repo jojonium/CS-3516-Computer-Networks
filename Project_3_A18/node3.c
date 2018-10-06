@@ -102,7 +102,8 @@ void rtupdate3( struct RoutePacket *rcvdpkt ) {
 	struct RoutePacket toSend;
 
 	if (TraceLevel >= 2) {
-		printf("node%d received routing packet\n", NODEID);
+		printf("node%d received routing packet from %d\n", NODEID,
+			       	rcvdpkt->sourceid);
 	}
 
 	// don't break 18 USC Section 1702 (reading someone else's mail)!
@@ -142,6 +143,13 @@ void rtupdate3( struct RoutePacket *rcvdpkt ) {
 				}
 			}
 			toSend.destid = n;
+			if (TraceLevel >= 2) {
+				printf("node %d sends packet to node %d with: ", NODEID, n);
+				for (i = 0; i < numNodes; i++) {
+					printf("%d ", toSend.mincost[i]);
+				}
+				printf("\n");
+			}
 			toLayer2(toSend);
 		}
 
