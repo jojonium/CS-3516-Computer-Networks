@@ -42,7 +42,7 @@ int min0(int count, int array[]) {
  */
 void rtinit0() {
 	int i, j;
-	struct RoutePacket toSend[MAX_NODES];
+	struct RoutePacket toSend;
 
 	if (TraceLevel >= 2) {
 		printf("Initializing node%d\n", NODEID);
@@ -73,40 +73,40 @@ void rtinit0() {
 
 	// construct packets to send to neighbors
 	for (i = 0; i < numNodes; i++) {
-		if (i != NODEID) {
+		if (i != NODEID && neighbor0->NodeCosts[i] < INFINITY) {
 			if (TraceLevel >= 3) printf("making packet %d...\n", i);
-			toSend[i].sourceid = 0;
-			toSend[i].destid = i;
+			toSend.sourceid = NODEID;
+			toSend.destid = i;
 			for (j = 0; j < numNodes; j++) {
-				toSend[i].mincost[j] = dt0.costs[j][j];
+				toSend.mincost[j] = dt0.costs[j][j];
 			}
 			// send packet to neighbor
-			toLayer2(toSend[i]);
+			toLayer2(toSend);
 		}
 	}
 }
 
 /* rtupdate0(struct RoutePacket *rcvdpkt)
- * Called when node 0 receives a routing packet that was sent to it by one of
+ * Called when this node receives a routing packet that was sent to it by one of
  * its directly connected neighbors. The parameter *recvdpkt is a pointer to the
  * packet that was received. rtupdate0() is the heart of the distance vector
  * algorithm. The values it receives in a routing pcket from some other node i
  * contains i's current shortest path costs to all other network nodes.
  * rtupdate0() uses these received values to update its own distance table. If
- * its own minimum cost to another node changes as a result of the update, node
- * 0 informs its directly connected neighbors of this change by sending them a
- * routing packet.
+ * its own minimum cost to another node changes as a result of the update, this
+ * node informs its directly connected neighbors of this change by sending them
+ * a routing packet.
  */
 void rtupdate0( struct RoutePacket *rcvdpkt ) {
-	int i, j, tableUpdated, src;
-	struct RoutePacket toSend[numNodes];
+	int i, j, n, tableUpdated, src;
+	struct RoutePacket toSend;
 
 	if (TraceLevel >= 2) {
 		printf("node%d received routing packet\n", NODEID);
 	}
 
-	// don't break 18 USC Section 1702 (reading someone else's mail)
-	if (rcvdpkt->destid != 0) {
+	// don't break 18 USC Section 1702 (reading someone else's mail)!
+	if (rcvdpkt->destid != NODEID) {
 		printf("node%d received %d's mail\n", NODEID, rcvdpkt->destid);
 		exit(1);
 	}
@@ -114,9 +114,9 @@ void rtupdate0( struct RoutePacket *rcvdpkt ) {
 	tableUpdated = 0; // flag
 	src = rcvdpkt->sourceid;
 
-	for (i = 0; i < MAX_NODES; i++) {
-		if (dt0.costs[i][src] > dt0.costs[src][0] + rcvdpkt->mincost[i]) {
-			dt0.costs[i][src] = dt0.costs[src][0] + rcvdpkt->mincost[i];
+	for (i = 0; i < numNodes; i++) {
+		if (dt0.costs[i][src] > dt0.costs[src][src] + rcvdpkt->mincost[i]) {
+			dt0.costs[i][src] = dt0.costs[src][src] + rcvdpkt->mincost[i];
 			if (i != NODEID) {
 				tableUpdated = 1;
 			}
@@ -125,17 +125,24 @@ void rtupdate0( struct RoutePacket *rcvdpkt ) {
 
 	if (tableUpdated) {
 		printf("node%d distance table updated: \n", NODEID);
-		printdt0(0, getNeighborCosts(0), &dt0);
+		printdt0(NODEID, neighbor0, &dt0);
+
+		// initialize toSend
+		for (i = 0; i < numNodes; i++) {
+			toSend.mincost[i] = INFINITY;
+		}
 		
 		// construct packets to send to neighbors
-		for (i = 1; i < numNodes; i++) {
-			toSend[i].sourceid = 0;
-			toSend[i].destid = i;
-			for (j = 0; j < numNodes; j++) {
-				toSend[i].mincost[j] = min0(numNodes, dt0.costs[j]);
+		toSend.sourceid = NODEID;
+		for (n = 0; n < numNodes && n != NODEID; n++) {
+			for (i = 0; i < numNodes; i++) {
+				for (j = 0; j < numNodes; j++) {
+					if (toSend.mincost[i] > dt0.costs[i][j])
+						toSend.mincost[i] = dt0.costs[i][j];
+				}
 			}
-			// send packet to neighbor
-			toLayer2(toSend[i]);
+			toSend.destid = n;
+			toLayer2(toSend);
 		}
 
 	}
