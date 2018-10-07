@@ -1,4 +1,5 @@
-CS 3516 - Computer Networks ===========================
+CS 3516 - Computer Networks
+===========================
 
 Coursework and assignments for the WPI computer science class CS 3516 - Computer
 Networks.
