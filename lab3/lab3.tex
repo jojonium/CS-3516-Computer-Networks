@@ -1,0 +1,57 @@
+\documentclass[12pt, letterpaper]{article}
+\usepackage{graphicx}
+\graphicspath{ {./} }
+\usepackage[utf8]{inputenc}
+\title{CS 3516 Lab 3}
+\author{Joseph Petitti (jppetitti)}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{enumerate}
+	\item 00:d0:59:a9:3d:68
+	\item 00:06:25:da:af:73. No, this is the address of the router.
+	\item 0x0800. This corresponds to IPv4.
+	\item 54 bytes.
+	\item 00:06:25:da:af:73. No, this is still the address of the router.
+	\item 00:d0:59:a9:3d:68. This is the address of my computer.
+	\item 0x0800. This corresponds to IPv4.
+	\item 67 bytes.
+	\item
+		\begin{tabular}{l | l | l | l | l}
+			Address & HWtype & HWaddress & Flags Mask & Iface \\
+			\hline
+			192.168.1.146 & ether & 00:17:88:b4:09:c2 & C & wlp4s0 \\
+			192.168.1.201 & ether & 3c:52:82:f8:73:6f & C & wlp4s0 \\
+			192.168.1.71  & ether & 30:5a:3a:82:b8:1f & C & wlp4s0 \\
+			gateway       & ether & 60:45:cb:cb:31:d0 & C & wlp4s0 \\
+		\end{tabular}
+		
+				The ``address'' table shows the IP address, ``HWtype'' shows the
+				hardware type, the ``HWaddress'' shows the physical MAC address,
+				and ``Iface'' shows the interface.
+	\item The source is 00:d0:59:a9:3d:68 and the destination is
+			ff:ff:ff:ff:ff:ff.
+	\item The ethernet frame type field is 0x0806. This corresponds to ARP.
+	\item 
+			\begin{enumerate}
+					\item 20 bytes.
+					\item 0x0001
+					\item Yes.
+					\item 38 bytes.
+			\end{enumerate}
+	\item 
+			\begin{enumerate}
+					\item 20 bytes.
+					\item 0x0002
+					\item 22 bytes.
+			\end{enumerate}
+	\item Source: 00:06:25:da:af:73. Destination: 00:d0:59:a9:3d:68.
+	\item Packet 6 is an ARP query from the computer with IP address
+			192.168.1.104. We don't see the reply because it was only sent to
+				192.106.1.104.
+\end{enumerate}
+
+\end{document}
