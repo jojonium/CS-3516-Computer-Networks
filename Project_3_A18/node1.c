@@ -5,6 +5,7 @@
 #define NODEID 1
 
 extern int TraceLevel;
+extern float clocktime;
 
 struct distance_table {
   int costs[MAX_NODES][MAX_NODES];
@@ -45,7 +46,7 @@ void rtinit1() {
 	struct RoutePacket toSend;
 
 	if (TraceLevel >= 2) {
-		printf("Initializing node%d\n", NODEID);
+		printf("At time t=%.3f,rtinid%d() called.\n", clocktime, NODEID);
 	}
 
 	// get the initial neighbors
@@ -102,8 +103,8 @@ void rtupdate1( struct RoutePacket *rcvdpkt ) {
 	struct RoutePacket toSend;
 
 	if (TraceLevel >= 2) {
-		printf("node%d received routing packet from %d\n", NODEID,
-			       	rcvdpkt->sourceid);
+		printf("At time t=%.3f, node%d received routing packet from %d\n"
+				, clocktime, NODEID, rcvdpkt->sourceid);
 	}
 
 	// don't break 18 USC Section 1702 (reading someone else's mail)!
@@ -144,7 +145,7 @@ void rtupdate1( struct RoutePacket *rcvdpkt ) {
 			}
 			toSend.destid = n;
 			if (TraceLevel >= 2) {
-				printf("node %d sends packet to node %d with: ", NODEID, n);
+				printf("At time t=%.3f, node %d sends packet to node %d with: ", clocktime, NODEID, n);
 				for (i = 0; i < numNodes; i++) {
 					printf("%d ", toSend.mincost[i]);
 				}
